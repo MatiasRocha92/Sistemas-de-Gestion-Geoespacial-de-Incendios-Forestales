@@ -1,0 +1,134 @@
+version: "3.9"
+
+services:
+  # =============================================================================
+  # BASE DE DATOS: PostgreSQL 16 + PostGIS 3.4
+  # =============================================================================
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: firewatch_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-firewatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-firewatch_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-firewatch_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-firewatch} -d ${POSTGRES_DB:-firewatch_db}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - firewatch_network
+
+  # =============================================================================
+  # CACHE Y MENSAJERÍA: Redis Stack (Soporte Geoespacial + Pub/Sub)
+  # =============================================================================
+  redis:
+    image: redis/redis-stack:latest
+    container_name: firewatch_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+      - "8001:8001" # RedisInsight UI
+    volumes:
+      - redis_data:/data
+    environment:
+      REDIS_ARGS: "--appendonly yes"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - firewatch_network
+
+  # =============================================================================
+  # BACKEND: FastAPI (Python 3.12+)
+  # =============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: firewatch_backend
+    restart: unless-stopped
+    environment:
+      # Base de Datos
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-firewatch}:${POSTGRES_PASSWORD:-firewatch_secret}@db:5432/${POSTGRES_DB:-firewatch_db}
+      DATABASE_URL_SYNC: postgresql://${POSTGRES_USER:-firewatch}:${POSTGRES_PASSWORD:-firewatch_secret}@db:5432/${POSTGRES_DB:-firewatch_db}
+
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+
+      # API Keys externas
+      NASA_FIRMS_API_KEY: ${NASA_FIRMS_API_KEY:-}
+      OPEN_METEO_API_KEY: ${OPEN_METEO_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+
+      # Configuración App
+      SECRET_KEY: ${SECRET_KEY:-your_super_secret_key_change_in_production}
+      DEBUG: ${DEBUG:-true}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - firewatch_network
+
+  # =============================================================================
+  # FRONTEND: React 18+ (Vite + TypeScript)
+  # =============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: firewatch_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+      VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:8000}
+    ports:
+      - "${FRONTEND_PORT:-3000}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    command: npm run dev -- --host 0.0.0.0
+    networks:
+      - firewatch_network
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  firewatch_network:
+    driver: bridge
