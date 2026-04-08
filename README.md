@@ -109,10 +109,4 @@ Este sistema proporciona herramientas para la **prevención**, **detección** y 
 - [ ] Análisis de severidad post-incendio (Sentinel-2)
 - [ ] Integración CONAE/SMN
 
-## 🤝 Contribuciones
-
-Las contribuciones son bienvenidas! Por favor, lee [CONTRIBUTING.md](docs/CONTRIBUTING.md) para más detalles.
-
----
-
-**Desarrollado con ❤️ para la protección de los bosques argentinos y latinoamericanos.**
+**Desarrollado con ❤️ para la protección de los bosques argentinos y Sudamericanos.**
