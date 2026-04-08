@@ -109,10 +109,6 @@ Este sistema proporciona herramientas para la **prevención**, **detección** y 
 - [ ] Análisis de severidad post-incendio (Sentinel-2)
 - [ ] Integración CONAE/SMN
 
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
-
 ## 🤝 Contribuciones
 
 Las contribuciones son bienvenidas! Por favor, lee [CONTRIBUTING.md](docs/CONTRIBUTING.md) para más detalles.
